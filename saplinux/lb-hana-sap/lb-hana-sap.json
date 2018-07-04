@@ -1,0 +1,166 @@
+{
+  "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "loadBalancerName": {
+      "type": "string",
+      "defaultValue": "LB-HANA"
+    },
+    "virtualNetworkName": {
+      "type": "string",
+      "defaultValue": "vmnet01"
+    },
+    "virtualNetworkResourceGroup": {
+      "type": "string",
+      "defaultValue": "rg-network"
+    },
+    "subnetName": {
+      "type": "string",
+      "defaultValue": "DMZ"
+    },
+    "privateIPAddress": {
+      "type": "string",
+      "defaultValue": "10.10.3.203"
+    },
+    "sid": {
+      "type": "string",
+      "maxLength": 3,
+      "defaultValue": "sah"
+    },
+    "hanaInstanceNumber": {
+      "type": "string",
+      "maxLength": 2,
+      "defaultValue": "03"
+    }
+  },
+  "variables": {
+    "location": "[resourceGroup().location]",
+    "vnetId": "[resourceId(parameters('virtualNetworkResourceGroup'),'Microsoft.Network/virtualNetworks', parameters('virtualNetworkName'))]",
+    "subnetId": "[concat(variables('vnetId'), '/subnets/', parameters('subnetName'))]",
+    "hanaSID": "[toLower(parameters('sid'))]",
+    "hanaProbePortName": "[concat('hanahealthprobe-',variables('hanaSID'))]",
+    "hanaProbePort": "[concat('625',parameters('hanaInstanceNumber'))]",
+    "hanaFrontEndIPConfigurationsNAme": "[concat('hanafrontend-',variables('hanaSID'))]",
+    "hanaBackEndPoolName": "[concat('hanabackendpool-',variables('hanaSID'))]",
+    "hanaprefixLBName": "[concat('hanalbr',variables('hanaSID'),'-')]",
+    "hanaRulesLB": {
+      "port3_13": {
+        "lbName": "[concat(variables('hanaprefixLBName'),'3',parameters('hanaInstanceNumber'),'13')]",
+        "frontEndPort": "[concat('3',parameters('hanaInstanceNumber'),'13')]",
+        "backEndPort": "[concat('3',parameters('hanaInstanceNumber'),'13')]"
+      },
+      "port3_15": {
+        "lbName": "[concat(variables('hanaprefixLBName'),'3',parameters('hanaInstanceNumber'),'15')]",
+        "frontEndPort": "[concat('3',parameters('hanaInstanceNumber'),'15')]",
+        "backEndPort": "[concat('3',parameters('hanaInstanceNumber'),'15')]"
+      },
+      "port3_17": {
+        "lbName": "[concat(variables('hanaprefixLBName'),'3',parameters('hanaInstanceNumber'),'17')]",
+        "frontEndPort": "[concat('3',parameters('hanaInstanceNumber'),'17')]",
+        "backEndPort": "[concat('3',parameters('hanaInstanceNumber'),'17')]"
+      }
+    }
+  },
+  "resources": [
+    {
+      "apiVersion": "2017-08-01",
+      "name": "[parameters('loadBalancerName')]",
+      "type": "Microsoft.Network/loadBalancers",
+      "location": "[variables('location')]",
+      "sku": {
+        "name": "Basic"
+      },
+      "dependsOn": [],
+      "properties": {
+        "frontendIPConfigurations": [
+          {
+            "name": "[variables('hanaFrontEndIPConfigurationsNAme')]",
+            "properties": {
+              "privateIPAllocationMethod": "Static",
+              "subnet": {
+                "id": "[variables('subnetId')]"
+              },
+              "privateIPAddress": "[parameters('privateIPAddress')]"
+            }
+          }
+        ],
+        "backendAddressPools": [
+          {
+            "name": "[variables('hanaBackEndPoolName')]"
+          }
+        ],
+        "loadBalancingRules": [
+          {
+            "name": "[variables('hanaRulesLB')['port3_13'].lbName]",
+            "properties": {
+              "frontendIPConfiguration": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', parameters('loadBalancerName')), '/frontendIPConfigurations/',variables('hanaFrontEndIPConfigurationsNAme'))]"
+              },
+              "backendAddressPool": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', parameters('loadBalancerName')), '/backendAddressPools/', variables('hanaBackEndPoolName'))]"
+              },
+              "probe": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', parameters('loadBalancerName')), '/probes/', variables('hanaProbePortName'))]"
+              },
+              "frontendPort": "[variables('hanaRulesLB')['port3_13'].frontEndPort]",
+              "backendPort": "[variables('hanaRulesLB')['port3_13'].backEndPort]",
+              "protocol": "Tcp",
+              "idleTimeoutInMinutes": 30,
+              "enableFloatingIP": true
+            }
+          },
+          {
+            "name": "[variables('hanaRulesLB')['port3_15'].lbName]",
+            "properties": {
+              "frontendIPConfiguration": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', parameters('loadBalancerName')), '/frontendIPConfigurations/',variables('hanaFrontEndIPConfigurationsNAme'))]"
+              },
+              "backendAddressPool": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', parameters('loadBalancerName')), '/backendAddressPools/', variables('hanaBackEndPoolName'))]"
+              },
+              "probe": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', parameters('loadBalancerName')), '/probes/', variables('hanaProbePortName'))]"
+              },
+              "frontendPort": "[variables('hanaRulesLB')['port3_15'].frontEndPort]",
+              "backendPort": "[variables('hanaRulesLB')['port3_15'].backEndPort]",
+              "protocol": "Tcp",
+              "idleTimeoutInMinutes": 30,
+              "enableFloatingIP": true
+            }
+          },
+          {
+            "name": "[variables('hanaRulesLB')['port3_17'].lbName]",
+            "properties": {
+              "frontendIPConfiguration": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', parameters('loadBalancerName')), '/frontendIPConfigurations/',variables('hanaFrontEndIPConfigurationsNAme'))]"
+              },
+              "backendAddressPool": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', parameters('loadBalancerName')), '/backendAddressPools/', variables('hanaBackEndPoolName'))]"
+              },
+              "probe": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', parameters('loadBalancerName')), '/probes/', variables('hanaProbePortName'))]"
+              },
+              "frontendPort": "[variables('hanaRulesLB')['port3_17'].frontEndPort]",
+              "backendPort": "[variables('hanaRulesLB')['port3_17'].backEndPort]",
+              "protocol": "Tcp",
+              "idleTimeoutInMinutes": 30,
+              "enableFloatingIP": true
+            }
+          }
+        ],
+        "probes": [
+          {
+            "name": "[variables('hanaProbePortName')]",
+            "properties": {
+              "protocol": "Tcp",
+              "port": "[variables('hanaProbePort')]",
+              "intervalInSeconds": 5,
+              "numberOfProbes": 2,
+              "loadBalancingRules": []
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
