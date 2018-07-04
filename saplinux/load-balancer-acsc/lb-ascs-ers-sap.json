@@ -4,45 +4,86 @@
   "parameters": {
     "loadBalancerName": {
       "type": "string",
-      "defaultValue": "LB-INTERNAL"
+      "defaultValue": "LB-INTERNAL",
+      "metadata": {
+        "description": "Azure Internal Load Balancer Name"
+      }
     },
     "virtualNetworkName": {
       "type": "string",
-      "defaultValue": "vmnet01"
+      "defaultValue": "vmnet01",
+      "metadata": {
+        "description": "Virtual Network name"
+      }
     },
     "virtualNetworkResourceGroup": {
       "type": "string",
-      "defaultValue": "rg-network"
+      "defaultValue": "rg-network",
+      "metadata": {
+        "description": "Resourse group virtual network"
+      }
     },
     "subnetName": {
       "type": "string",
-      "defaultValue": "DMZ"
+      "defaultValue": "DMZ",
+      "metadata": {
+        "description": "Subnet Name to Load Balancer"
+      }
     },
-    "privateIPAddress": {
+    "ascsprivateIPAddress": {
       "type": "string",
-      "defaultValue": "10.10.3.200"
+      "defaultValue": "10.10.3.200",
+      "metadata": {
+        "description": "IP Load Balancer to (A)SCS SAP"
+      }
+    },
+    "ersprivateIPAddress": {
+      "type": "string",
+      "defaultValue": "10.10.3.201",
+      "metadata": {
+        "description": "IP Load Balancer to ERS SAP"
+      }
     },
     "sid": {
       "type": "string",
       "maxLength": 3,
-      "defaultValue": "san"
+      "defaultValue": "SAN",
+      "metadata": {
+        "description": "SAP sid"
+      }
     },
     "scsInstanceNumber": {
       "type": "string",
       "maxLength": 2,
-      "defaultValue": "01"
+      "defaultValue": "01",
+      "metadata": {
+        "description": "SAP (A)SCS instance number"
+      }
+    },
+    "ersInstanceNumber": {
+      "type": "string",
+      "maxLength": 2,
+      "defaultValue": "10",
+      "metadata": {
+        "description": "SAP ERS instance number"
+      }
     }
   },
   "variables": {
     "location": "[resourceGroup().location]",
     "vnetId": "[resourceId(parameters('virtualNetworkResourceGroup'),'Microsoft.Network/virtualNetworks', parameters('virtualNetworkName'))]",
     "subnetId": "[concat(variables('vnetId'), '/subnets/', parameters('subnetName'))]",
-    "scsSID": "[toLower(parameters('sid'))]",
-    "scsProbePortName": "[concat('scshealthprobe-',variables('scsSID'))]",
+    "sapSID": "[toLower(parameters('sid'))]",
+    "scsProbePortName": "[concat('scshealthprobe-',variables('sapSID'))]",
     "scsProbePort": "[concat('620',parameters('scsInstanceNumber'))]",
-    "scsFrontEndIPConfigurationsNAme": "[concat('scsfrontend-',variables('scsSID'))]",
-    "scsBackEndPoolName": "[concat('scsbackendpool-',variables('scsSID'))]",
-    "scsprefixLBName": "[concat('scslbr',variables('scsSID'),'-')]",
+    "scsFrontEndIPConfigurationsNAme": "[concat('scsfrontend-',variables('sapSID'))]",
+    "scsBackEndPoolName": "[concat('scsbackendpool-',variables('sapSID'))]",
+    "scsprefixLBName": "[concat('scslbr',variables('sapSID'),'-')]",
+    "ersProbePortName": "[concat('ershealthprobe-',variables('sapSID'))]",
+    "ersProbePort": "[concat('621',parameters('ersInstanceNumber'))]",
+    "ersFrontEndIPConfigurationsNAme": "[concat('ersfrontend-',variables('sapSID'))]",
+    "ersBackEndPoolName": "[concat('ersbackendpool-',variables('sapSID'))]",
+    "ersprefixLBName": "[concat('erslbr',variables('sapSID'),'-')]",
     "scsRulesLB": {
       "port32": {
         "lbName": "[concat(variables('scsprefixLBName'),'32',parameters('scsInstanceNumber'))]",
@@ -79,6 +120,28 @@
         "frontEndPort": "[concat('5',parameters('scsInstanceNumber'),'16')]",
         "backEndPort": "[concat('5',parameters('scsInstanceNumber'),'16')]"
       }
+    },
+    "ersRulesLB": {
+      "port33": {
+        "lbName": "[concat(variables('ersprefixLBName'),'33',parameters('ersInstanceNumber'))]",
+        "frontEndPort": "[concat('33',parameters('ersInstanceNumber'))]",
+        "backEndPort": "[concat('33',parameters('ersInstanceNumber'))]"
+      },
+      "port5_13": {
+        "lbName": "[concat(variables('ersprefixLBName'),'5',parameters('ersInstanceNumber'),'13')]",
+        "frontEndPort": "[concat('5',parameters('ersInstanceNumber'),'13')]",
+        "backEndPort": "[concat('5',parameters('ersInstanceNumber'),'13')]"
+      },
+      "port5_14": {
+        "lbName": "[concat(variables('ersprefixLBName'),'5',parameters('ersInstanceNumber'),'14')]",
+        "frontEndPort": "[concat('5',parameters('ersInstanceNumber'),'14')]",
+        "backEndPort": "[concat('5',parameters('ersInstanceNumber'),'14')]"
+      },
+      "port5_16": {
+        "lbName": "[concat(variables('ersprefixLBName'),'5',parameters('ersInstanceNumber'),'16')]",
+        "frontEndPort": "[concat('5',parameters('ersInstanceNumber'),'16')]",
+        "backEndPort": "[concat('5',parameters('ersInstanceNumber'),'16')]"
+      }
     }
   },
   "resources": [
@@ -100,13 +163,26 @@
               "subnet": {
                 "id": "[variables('subnetId')]"
               },
-              "privateIPAddress": "[parameters('privateIPAddress')]"
+              "privateIPAddress": "[parameters('ascsprivateIPAddress')]"
+            }
+          },
+          {
+            "name": "[variables('ersFrontEndIPConfigurationsNAme')]",
+            "properties": {
+              "privateIPAllocationMethod": "Static",
+              "subnet": {
+                "id": "[variables('subnetId')]"
+              },
+              "privateIPAddress": "[parameters('ersprivateIPAddress')]"
             }
           }
         ],
         "backendAddressPools": [
           {
             "name": "[variables('scsBackEndPoolName')]"
+          },
+          {
+            "name": "[variables('ersBackEndPoolName')]"
           }
         ],
         "loadBalancingRules": [
@@ -242,6 +318,82 @@
               "idleTimeoutInMinutes": 30,
               "enableFloatingIP": true
             }
+          },
+          {
+            "name": "[variables('ersRulesLB')['port33'].lbName]",
+            "properties": {
+              "frontendIPConfiguration": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', parameters('loadBalancerName')), '/frontendIPConfigurations/',variables('ersFrontEndIPConfigurationsNAme'))]"
+              },
+              "backendAddressPool": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', parameters('loadBalancerName')), '/backendAddressPools/', variables('ersBackEndPoolName'))]"
+              },
+              "probe": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', parameters('loadBalancerName')), '/probes/', variables('ersProbePortName'))]"
+              },
+              "frontendPort": "[variables('ersRulesLB')['port33'].frontEndPort]",
+              "backendPort": "[variables('ersRulesLB')['port33'].backEndPort]",
+              "protocol": "Tcp",
+              "idleTimeoutInMinutes": 30,
+              "enableFloatingIP": true
+            }
+          },
+          {
+            "name": "[variables('ersRulesLB')['port5_13'].lbName]",
+            "properties": {
+              "frontendIPConfiguration": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', parameters('loadBalancerName')), '/frontendIPConfigurations/',variables('ersFrontEndIPConfigurationsNAme'))]"
+              },
+              "backendAddressPool": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', parameters('loadBalancerName')), '/backendAddressPools/', variables('ersBackEndPoolName'))]"
+              },
+              "probe": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', parameters('loadBalancerName')), '/probes/', variables('ersProbePortName'))]"
+              },
+              "frontendPort": "[variables('ersRulesLB')['port5_13'].frontEndPort]",
+              "backendPort": "[variables('ersRulesLB')['port5_13'].backEndPort]",
+              "protocol": "Tcp",
+              "idleTimeoutInMinutes": 30,
+              "enableFloatingIP": true
+            }
+          },
+          {
+            "name": "[variables('ersRulesLB')['port5_14'].lbName]",
+            "properties": {
+              "frontendIPConfiguration": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', parameters('loadBalancerName')), '/frontendIPConfigurations/',variables('ersFrontEndIPConfigurationsNAme'))]"
+              },
+              "backendAddressPool": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', parameters('loadBalancerName')), '/backendAddressPools/', variables('ersBackEndPoolName'))]"
+              },
+              "probe": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', parameters('loadBalancerName')), '/probes/', variables('ersProbePortName'))]"
+              },
+              "frontendPort": "[variables('ersRulesLB')['port5_14'].frontEndPort]",
+              "backendPort": "[variables('ersRulesLB')['port5_14'].backEndPort]",
+              "protocol": "Tcp",
+              "idleTimeoutInMinutes": 30,
+              "enableFloatingIP": true
+            }
+          },
+          {
+            "name": "[variables('ersRulesLB')['port5_16'].lbName]",
+            "properties": {
+              "frontendIPConfiguration": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', parameters('loadBalancerName')), '/frontendIPConfigurations/',variables('ersFrontEndIPConfigurationsNAme'))]"
+              },
+              "backendAddressPool": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', parameters('loadBalancerName')), '/backendAddressPools/', variables('ersBackEndPoolName'))]"
+              },
+              "probe": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', parameters('loadBalancerName')), '/probes/', variables('ersProbePortName'))]"
+              },
+              "frontendPort": "[variables('ersRulesLB')['port5_16'].frontEndPort]",
+              "backendPort": "[variables('ersRulesLB')['port5_16'].backEndPort]",
+              "protocol": "Tcp",
+              "idleTimeoutInMinutes": 30,
+              "enableFloatingIP": true
+            }
           }
         ],
         "probes": [
@@ -250,6 +402,16 @@
             "properties": {
               "protocol": "Tcp",
               "port": "[variables('scsProbePort')]",
+              "intervalInSeconds": 5,
+              "numberOfProbes": 2,
+              "loadBalancingRules": []
+            }
+          },
+          {
+            "name": "[variables('ersProbePortName')]",
+            "properties": {
+              "protocol": "Tcp",
+              "port": "[variables('ersProbePort')]",
               "intervalInSeconds": 5,
               "numberOfProbes": 2,
               "loadBalancingRules": []
